@@ -2,3 +2,5 @@ private.py
 private.pyc
 scratch.py
 scratch.pyc
+*.pyc
+*-checkpoint.ipynb
