@@ -57,10 +57,11 @@ def execute_query(query):
 
 if __name__ == '__main__':
     keyword = str(sys.argv[1])
+    keyword_clean = keyword.replace(" ", "_")
     date_added = datetime.datetime.now()
 
-    query_create_table = settings.QUERY_CREATE_TABLE.format(keyword)
-    query_insert_row = settings.QUERY_INSERT.format(keyword)
+    query_create_table = settings.QUERY_CREATE_TABLE.format(keyword_clean)
+    query_insert_row = settings.QUERY_INSERT.format(keyword_clean)
 
     execute_query(query_create_table)
     zipcodes_latitudes_longitudes = get_list_of_dictionaries_from_database(settings.QUERY_SEARCH_DATA)
@@ -68,7 +69,7 @@ if __name__ == '__main__':
     for api_inputs in zipcodes_latitudes_longitudes:
         zip_code = api_inputs.pop('zip')
         api_inputs.update({'keyword': keyword})
-        print(api_inputs)
+        print('Keyword: ' + keyword + ', Zip: ' + zip_code)
         data = get_google_map_api_data(**api_inputs)
 
         if data['results']:
