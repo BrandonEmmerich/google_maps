@@ -1,3 +1,4 @@
+import pandas as pd
 import private
 import psycopg2
 import requests
@@ -37,41 +38,34 @@ def write_data_to_database(conn, row):
         conn.rollback()
         print(e)
 
-def get_coordinates(zip):
+def get_list_of_dictionaries_from_database(query):
     with psycopg2.connect(private.AWS_CONNECTION_STRING) as conn:
+        df = pd.read_sql(
+            sql = query,
+            con = conn
+        )
+        list_of_dictionaries = df.to_dict('records')
 
-        cur = conn.cursor()
-        cur.execute(settings.QUERY_LAT_LONG.format(str(zip)))
-        data = cur.fetchone()
-
-        row = {
-            'latitude': data[1],
-            'longitude': data[2],
-        }
-
-    return row
+        return list_of_dictionaries
 
 
 if __name__ == '__main__':
+    keyword = 'chipotle'
+    zipcodes_latitudes_longitudes = get_list_of_dictionaries_from_database(settings.QUERY_SEARCH_DATA)
 
-    api_inputs = []
-    for keyword in settings.search_terms:
-        for zip in settings.manhattan_zip_codes:
-            search_data = get_coordinates(zip)
-            search_data.update({'keyword': keyword})
-            api_inputs.append(search_data)
-
-
-    for search_data in api_inputs:
-        print(search_data)
-
-        data = get_google_map_api_data(**search_data)
+    import ipdb; ipdb.set_trace()
+    for api_inputs in zipcodes_latitudes_longitudes:
+        zip_code = api_inputs.pop('zip')
+        api_inputs.update({'keyword': keyword})
+        print(api_inputs)
+        data = get_google_map_api_data(**api_inputs)
 
         if data['results']:
 
             for d in data['results']:
                 row = parse_google_maps_data(d)
-                row.update(search_data)
+                row.update(api_inputs)
+                row.update({'zip_code': zip_code})
 
                 with psycopg2.connect(private.AWS_CONNECTION_STRING) as conn:
                     write_data_to_database(conn, row)
