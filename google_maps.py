@@ -1,9 +1,10 @@
+import datetime
 import pandas as pd
 import private
 import psycopg2
 import requests
 import settings
-
+import sys
 
 def get_google_map_api_data(latitude, longitude, keyword):
     url_base = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={latitude},{longitude}&radius=1000&keyword={keyword}&key={api_key}'
@@ -28,15 +29,15 @@ def parse_google_maps_data(_dict):
 
     return row
 
-def write_data_to_database(conn, row):
-
-    try:
-        cur = conn.cursor()
-        cur.execute(settings.QUERY_INSERT, row)
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        print(e)
+def write_data_to_database(row, query):
+    with psycopg2.connect(private.AWS_CONNECTION_STRING) as conn:
+        try:
+            cur = conn.cursor()
+            cur.execute(query, row)
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print(e)
 
 def get_list_of_dictionaries_from_database(query):
     with psycopg2.connect(private.AWS_CONNECTION_STRING) as conn:
@@ -48,12 +49,22 @@ def get_list_of_dictionaries_from_database(query):
 
         return list_of_dictionaries
 
+def execute_query(query):
+    with psycopg2.connect(private.AWS_CONNECTION_STRING) as conn:
+        cur = conn.cursor()
+        cur.execute(query)
+
 
 if __name__ == '__main__':
-    keyword = 'chipotle'
+    keyword = str(sys.argv[1])
+    date_added = datetime.datetime.now()
+
+    query_create_table = settings.QUERY_CREATE_TABLE.format(keyword)
+    query_insert_row = settings.QUERY_INSERT.format(keyword)
+
+    execute_query(query_create_table)
     zipcodes_latitudes_longitudes = get_list_of_dictionaries_from_database(settings.QUERY_SEARCH_DATA)
 
-    import ipdb; ipdb.set_trace()
     for api_inputs in zipcodes_latitudes_longitudes:
         zip_code = api_inputs.pop('zip')
         api_inputs.update({'keyword': keyword})
@@ -65,7 +76,9 @@ if __name__ == '__main__':
             for d in data['results']:
                 row = parse_google_maps_data(d)
                 row.update(api_inputs)
-                row.update({'zip_code': zip_code})
+                row.update({
+                    'zip_code': zip_code,
+                    'date_added': date_added,
+                    })
 
-                with psycopg2.connect(private.AWS_CONNECTION_STRING) as conn:
-                    write_data_to_database(conn, row)
+                write_data_to_database(row, query_insert_row)
